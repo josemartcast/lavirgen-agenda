@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function inWorkspace(workspaceId) {
+      return userDoc().workspaceId == workspaceId;
+    }
+    function isOwner() {
+      return userDoc().role == "owner";
+    }
+    function isStaff() {
+      return userDoc().role == "staff";
+    }
+    function isTeamMember() {
+      return isOwner() || isStaff();
+    }
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth() && request.auth.uid == userId && request.resource.data.uid == userId;
+      allow update: if isAuth() && request.auth.uid == userId
+        && !("role" in request.resource.data.diff(resource.data).affectedKeys())
+        && !("workspaceId" in request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if false;
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if isAuth() && inWorkspace(workspaceId);
+      allow write: if false;
+
+      match /appointments/{appointmentId} {
+        allow read: if isAuth() && inWorkspace(workspaceId);
+        allow create: if isAuth() && inWorkspace(workspaceId) && isTeamMember()
+          && request.resource.data.clientId is string && request.resource.data.clientId.size() > 0
+          && request.resource.data.serviceIds is list && request.resource.data.serviceIds.size() > 0
+          && request.resource.data.startAt is timestamp && request.resource.data.durationMin is int
+          && request.resource.data.durationMin > 0
+          && request.resource.data.status in ["pendiente", "realizada", "cancelada"]
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isAuth() && inWorkspace(workspaceId) && isTeamMember()
+          && request.resource.data.status in ["pendiente", "realizada", "cancelada"];
+        allow delete: if isAuth() && inWorkspace(workspaceId) && isOwner();
+      }
+
+      match /clients/{clientId} {
+        allow read: if isAuth() && inWorkspace(workspaceId);
+        allow create: if isAuth() && inWorkspace(workspaceId) && isTeamMember()
+          && request.resource.data.name is string && request.resource.data.name.size() > 0
+          && request.resource.data.phone is string;
+        allow update: if isAuth() && inWorkspace(workspaceId) && isTeamMember();
+        allow delete: if isAuth() && inWorkspace(workspaceId) && isTeamMember();
+      }
+
+      match /services/{serviceId} {
+        allow read: if isAuth() && inWorkspace(workspaceId);
+        allow write: if isAuth() && inWorkspace(workspaceId) && isOwner();
+      }
+
+      match /closures/{closureId} {
+        allow read: if isAuth() && inWorkspace(workspaceId);
+        allow write: if isAuth() && inWorkspace(workspaceId) && isOwner();
+      }
+
+      match /schedule/{dayId} {
+        allow read: if isAuth() && inWorkspace(workspaceId);
+        allow write: if isAuth() && inWorkspace(workspaceId) && isOwner();
+      }
+    }
+  }
+}

@@ -1,0 +1,189 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  collection, query, where, onSnapshot, Timestamp,
+  orderBy, getDocs
+} from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useAuth } from '../../hooks/useAuth';
+import { Appointment, ScheduleDay, Closure } from '../../lib/types';
+import { FAB } from '../../components/ui/FAB';
+import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+
+const WORKSPACE_ID = 'ws_lavirgen';
+const CHIP_COLORS = ['bg-rosa-palido', 'bg-terracota-claro', 'bg-salvia-claro'];
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const DAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+function formatDate(d: Date) {
+  return d.toISOString().split('T')[0];
+}
+
+function generateSlots() {
+  const slots = [];
+  for (let h = 7; h < 21; h++) {
+    slots.push(`${String(h).padStart(2, '0')}:00`);
+    slots.push(`${String(h).padStart(2, '0')}:30`);
+  }
+  return slots;
+}
+
+export function AgendaPage() {
+  const navigate = useNavigate();
+  const { workspaceId } = useAuth();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
+  const [closures, setClosures] = useState<Closure[]>([]);
+
+  const dateStr = formatDate(currentDate);
+  const dayOfWeek = currentDate.getDay();
+  const dayId = DAY_IDS[dayOfWeek];
+  const daySchedule = schedule.find((s) => s.dayId === dayId);
+
+  const ws = workspaceId || WORKSPACE_ID;
+
+  useEffect(() => {
+    const startOfDay = new Date(dateStr + 'T00:00:00');
+    const endOfDay = new Date(dateStr + 'T23:59:59');
+    const q = query(
+      collection(db, 'workspaces', ws, 'appointments'),
+      where('startAt', '>=', Timestamp.fromDate(startOfDay)),
+      where('startAt', '<=', Timestamp.fromDate(endOfDay)),
+      orderBy('startAt')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setAppointments(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Appointment)));
+    });
+    return unsub;
+  }, [dateStr, ws]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'workspaces', ws, 'schedule'),
+      (snap) => setSchedule(snap.docs.map((d) => d.data() as ScheduleDay))
+    );
+    return unsub;
+  }, [ws]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'workspaces', ws, 'closures'),
+      (snap) => setClosures(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Closure)))
+    );
+    return unsub;
+  }, [ws]);
+
+  const isClosed = !daySchedule?.open;
+  const isClosure = closures.some((c) => {
+    if (c.startDate > dateStr) return false;
+    if (c.endDate) return c.startDate <= dateStr && c.endDate >= dateStr;
+    return c.startDate === dateStr;
+  });
+
+  const slots = generateSlots();
+
+  const getAppointmentForSlot = (time: string) => {
+    return appointments.filter((a) => {
+      const start = a.startAt.toDate();
+      const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+      return startTime === time;
+    });
+  };
+
+  const isInSchedule = (time: string) => {
+    if (!daySchedule?.open) return false;
+    const slot = daySchedule.slots?.[0];
+    if (!slot) return false;
+    return time >= slot.start && time < slot.end;
+  };
+
+  const goDay = (delta: number) => {
+    setCurrentDate((d) => {
+      const next = new Date(d);
+      next.setDate(next.getDate() + delta);
+      return next;
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="bg-white border-b border-border-subtle px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <span className="font-serif text-xl tracking-widest text-carbon">LAVIRGEN</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => goDay(-1)} className="p-1 rounded hover:bg-arena">
+            <ChevronLeft className="w-5 h-5 text-carbon" />
+          </button>
+          <span className="text-sm font-medium text-carbon min-w-[130px] text-center">
+            {DAY_NAMES[dayOfWeek]}, {currentDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+          </span>
+          <button onClick={() => goDay(1)} className="p-1 rounded hover:bg-arena">
+            <ChevronRight className="w-5 h-5 text-carbon" />
+          </button>
+        </div>
+        <button
+          onClick={() => setCurrentDate(new Date())}
+          className="text-xs text-terracota font-medium"
+        >
+          Hoy
+        </button>
+      </div>
+
+      {/* Closure/closed banner */}
+      {(isClosed || isClosure) && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-700">
+          <Lock className="w-4 h-4 flex-shrink-0" />
+          <span>{isClosure ? 'Día cerrado (cierre especial)' : 'Día sin actividad según horario'}</span>
+        </div>
+      )}
+
+      {/* Time grid */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="relative">
+          {slots.map((time) => {
+            const slotAppts = getAppointmentForSlot(time);
+            const inSchedule = isInSchedule(time);
+            return (
+              <div
+                key={time}
+                className={`flex border-b border-border-subtle min-h-[40px] ${!inSchedule ? 'bg-arena/60' : 'bg-white'}`}
+                onClick={() => {
+                  if (slotAppts.length === 0) {
+                    navigate(`/cita/nueva?date=${dateStr}&time=${time}`);
+                  }
+                }}
+              >
+                <div className="w-14 text-xs text-gris pt-1 px-2 flex-shrink-0 border-r border-border-subtle">
+                  {time}
+                </div>
+                <div className="flex-1 px-1 py-0.5 flex flex-col gap-0.5">
+                  {slotAppts.map((appt, idx) => (
+                    <button
+                      key={appt.id}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/cita/${appt.id}/editar`); }}
+                      className={`
+                        w-full text-left px-2 py-1 rounded text-xs font-medium text-carbon
+                        ${CHIP_COLORS[idx % CHIP_COLORS.length]}
+                        ${appt.status === 'cancelada' ? 'opacity-50 line-through' : ''}
+                        ${appt.status === 'realizada' ? 'opacity-70' : ''}
+                      `}
+                      style={{ minHeight: `${(appt.durationMin / 30) * 40}px` }}
+                    >
+                      <span className="truncate block">{appt.clientName}</span>
+                      <span className="text-[10px] opacity-70 block truncate">{appt.serviceNames?.join(', ')}</span>
+                      {appt.status === 'realizada' && <span className="text-[10px]">✓</span>}
+                      {appt.status === 'cancelada' && <span className="text-[10px]">✗</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <FAB onClick={() => navigate(`/cita/nueva?date=${dateStr}`)} />
+    </div>
+  );
+}
