@@ -50,9 +50,11 @@ export interface Service {
 
 export interface Closure {
   id: string;
-  type: 'vacation' | 'holiday' | 'punctual';
-  startDate: string;
-  endDate?: string;
+  type: 'vacation' | 'holiday' | 'punctual' | 'partial';
+  startDate: string;        // YYYY-MM-DD
+  endDate?: string;         // solo para vacation
+  startTime?: string;       // "HH:MM" — solo para partial
+  endTime?: string;         // "HH:MM" — solo para partial
   label?: string;
   createdAt: Timestamp;
 }

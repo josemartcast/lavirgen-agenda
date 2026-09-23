@@ -129,11 +129,28 @@ export function AppointmentForm() {
     if (!daySchedule?.open) warnings.push('Este día está cerrado según el horario.');
 
     const isClosure = closures.some((c) => {
+      if (c.type === 'partial') return false;
       if (c.startDate > data.date) return false;
       if (c.endDate) return c.startDate <= data.date && c.endDate >= data.date;
       return c.startDate === data.date;
     });
     if (isClosure) warnings.push('Este día tiene un cierre especial.');
+
+    // Bloqueos parciales (RN-02): avisar si la cita solapa alguno
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const newStartMin = dateObj.getHours() * 60 + dateObj.getMinutes();
+    const newEndMin = newStartMin + data.durationMin;
+    for (const c of closures) {
+      if (c.type !== 'partial' || c.startDate !== data.date || !c.startTime || !c.endTime) continue;
+      if (toMin(c.startTime) < newEndMin && toMin(c.endTime) > newStartMin) {
+        warnings.push(
+          `Esta cita se solapa con un bloqueo: ${c.label || 'Bloqueo por horas'} (${c.startTime}–${c.endTime}).`
+        );
+      }
+    }
     return warnings;
   };
 

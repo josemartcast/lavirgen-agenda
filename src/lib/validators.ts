@@ -31,9 +31,11 @@ export const serviceSchema = z.object({
 });
 
 export const closureSchema = z.object({
-  type: z.enum(['vacation', 'holiday', 'punctual']),
+  type: z.enum(['vacation', 'holiday', 'punctual', 'partial']),
   startDate: z.string().min(1, 'La fecha de inicio es obligatoria'),
   endDate: z.string().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
   label: z.string().optional(),
 });
 

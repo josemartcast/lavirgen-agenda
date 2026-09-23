@@ -80,10 +80,18 @@ export function AgendaPage() {
 
   const isClosed = !daySchedule?.open;
   const isClosure = closures.some((c) => {
+    if (c.type === 'partial') return false;
     if (c.startDate > dateStr) return false;
     if (c.endDate) return c.startDate <= dateStr && c.endDate >= dateStr;
     return c.startDate === dateStr;
   });
+
+  // Bloqueos parciales del día (RN-02)
+  const partialBlocks = closures.filter(
+    (c) => c.type === 'partial' && c.startDate === dateStr && c.startTime && c.endTime
+  );
+  const getBlockForSlot = (time: string) =>
+    partialBlocks.find((c) => c.startTime! <= time && time < c.endTime!);
 
   const slots = generateSlots();
 
@@ -152,10 +160,11 @@ export function AgendaPage() {
           {slots.map((time) => {
             const slotAppts = getAppointmentForSlot(time);
             const inSchedule = isInSchedule(time);
+            const block = getBlockForSlot(time);
             return (
               <div
                 key={time}
-                className={`flex border-b border-border-subtle min-h-[40px] ${!inSchedule ? 'bg-arena/60' : 'bg-white'}`}
+                className={`flex border-b border-border-subtle min-h-[40px] ${!inSchedule || block ? 'blocked-slot' : 'bg-white'}`}
                 onClick={() => {
                   if (slotAppts.length === 0) {
                     navigate(`/cita/nueva?date=${dateStr}&time=${time}`);
@@ -166,6 +175,11 @@ export function AgendaPage() {
                   {time}
                 </div>
                 <div className="flex-1 px-1 py-0.5 flex flex-col gap-0.5">
+                  {block && (
+                    <span className="self-start text-[10px] bg-gris/20 text-gris px-2 py-0.5 rounded-full">
+                      Bloqueado{block.label ? `: ${block.label}` : ''}
+                    </span>
+                  )}
                   {slotAppts.map((appt, idx) => (
                     <button
                       key={appt.id}
