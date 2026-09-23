@@ -3,13 +3,16 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  collection, doc, getDoc, addDoc, updateDoc, deleteDoc,
-  query, onSnapshot, Timestamp, getDocs, orderBy, where
+  collection, doc, getDoc, deleteDoc, updateDoc,
+  query, onSnapshot, Timestamp, getDocsFromCache, orderBy, where
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { appointmentSchema, AppointmentFormData } from '../../lib/validators';
 import { toLocalDateString } from '../../lib/dateUtils';
+import {
+  buildAppointmentPayload, createAppointment, updateAppointment,
+} from '../../lib/writes';
 import { Appointment, Client, Service, ScheduleDay, Closure } from '../../lib/types';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -155,41 +158,19 @@ export function AppointmentForm() {
     return warnings;
   };
 
-  const saveAppointment = async (data: AppointmentFormData) => {
-    setSaving(true);
+  // Offline-first: NO await — la cita se aplica en cache local al instante
+  // (agenda la muestra con "Pendiente de sincronizar") y se sincroniza al
+  // volver la red. Si el servidor la rechaza (permisos/reglas), writes.ts
+  // muestra un toast de error y el cambio se revierte solo.
+  const saveAppointment = (data: AppointmentFormData) => {
     setError('');
-    try {
-      const startDate = new Date(`${data.date}T${data.time}`);
-      const endDate = new Date(startDate.getTime() + data.durationMin * 60000);
-      const payload = {
-        clientId: data.clientId,
-        clientName: data.clientName,
-        serviceIds: data.serviceIds,
-        serviceNames: data.serviceNames,
-        startAt: Timestamp.fromDate(startDate),
-        endAt: Timestamp.fromDate(endDate),
-        durationMin: data.durationMin,
-        status: data.status,
-        notes: data.notes ?? '',
-        createdBy: userDoc?.uid || '',
-        updatedAt: Timestamp.now(),
-      };
-
-      if (isEditing && id) {
-        await updateDoc(doc(db, 'workspaces', ws, 'appointments', id), payload);
-      } else {
-        await addDoc(collection(db, 'workspaces', ws, 'appointments'), {
-          ...payload,
-          createdAt: Timestamp.now(),
-        });
-      }
-      navigate('/agenda');
-    } catch (e) {
-      console.error(e);
-      setError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
-    } finally {
-      setSaving(false);
+    const payload = buildAppointmentPayload(data, userDoc?.uid || '');
+    if (isEditing && id) {
+      updateAppointment(ws, id, payload);
+    } else {
+      createAppointment(ws, payload);
     }
+    navigate('/agenda');
   };
 
   // Solape real contra Firestore: citas del mismo día, no canceladas, excluyendo la propia
@@ -204,7 +185,9 @@ export function AppointmentForm() {
         where('startAt', '>=', Timestamp.fromDate(dayStart)),
         where('startAt', '<', Timestamp.fromDate(dayEnd))
       );
-      const snap = await getDocs(q);
+      // Desde cache: instantáneo online y offline (nunca bloquea el guardado).
+      // La agenda ya escucha las citas del día, así que están en cache local.
+      const snap = await getDocsFromCache(q);
       const overlapping = snap.docs.filter((d) => {
         if (isEditing && id && d.id === id) return false;
         const a = d.data() as Appointment;
@@ -231,7 +214,7 @@ export function AppointmentForm() {
       setShowWarning(true);
       return;
     }
-    await saveAppointment(data);
+    saveAppointment(data);
   };
 
   const handleDelete = async () => {
@@ -360,7 +343,7 @@ export function AppointmentForm() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <Button type="submit" loading={saving} className="w-full">
+        <Button type="submit" className="w-full">
           {isEditing ? 'Guardar cambios' : 'Crear cita'}
         </Button>
 

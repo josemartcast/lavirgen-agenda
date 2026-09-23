@@ -12,6 +12,7 @@ export interface UserDoc {
 }
 
 export interface Appointment {
+  pendingSync?: boolean;
   id: string;
   clientId: string;
   clientName: string;
@@ -28,6 +29,7 @@ export interface Appointment {
 }
 
 export interface Client {
+  pendingSync?: boolean;
   id: string;
   name: string;
   phone: string;

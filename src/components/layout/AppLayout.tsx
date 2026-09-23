@@ -1,6 +1,7 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { CalendarDays, Users, Scissors, Settings } from 'lucide-react';
 import { OfflineBanner } from '../ui/OfflineBanner';
+import { ToastHost } from '../ui/ToastHost';
 import { useAuth } from '../../hooks/useAuth';
 
 const navItems = [
@@ -21,6 +22,7 @@ export function AppLayout() {
   return (
     <div className="flex flex-col min-h-screen bg-arena">
       <OfflineBanner />
+      <ToastHost />
       <main className="flex-1 pb-20 overflow-y-auto">
         <Outlet />
       </main>

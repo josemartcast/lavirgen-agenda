@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  doc, getDoc, updateDoc, deleteDoc, onSnapshot,
+  doc, deleteDoc, onSnapshot,
   collection, query, where, orderBy, Timestamp
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Client, Appointment } from '../../lib/types';
+import { updateClient as updateClientDoc } from '../../lib/writes';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
@@ -15,7 +16,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { clientSchema, ClientFormData } from '../../lib/validators';
-import { ChevronLeft, Phone, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, Phone, Plus, Pencil, Trash2, CloudUpload } from 'lucide-react';
 
 const WORKSPACE_ID = 'ws_lavirgen';
 
@@ -39,7 +40,11 @@ export function ClientDetailPage() {
     if (!id) return;
     const unsub = onSnapshot(doc(db, 'workspaces', ws, 'clients', id), (snap) => {
       if (snap.exists()) {
-        const data = { id: snap.id, ...snap.data() } as Client;
+        const data = {
+          id: snap.id,
+          ...snap.data(),
+          pendingSync: snap.metadata.hasPendingWrites,
+        } as Client;
         setClient(data);
         reset({ name: data.name, phone: data.phone, notes: data.notes ?? '' });
       }
@@ -56,26 +61,21 @@ export function ClientDetailPage() {
       orderBy('startAt', 'desc')
     );
     const unsub = onSnapshot(q, (snap) =>
-      setAppointments(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Appointment)))
+      setAppointments(snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        pendingSync: d.metadata.hasPendingWrites,
+      } as Appointment)))
     );
     return unsub;
   }, [id, ws]);
 
-  const updateClient = async (data: ClientFormData) => {
+  // Offline-first: NO await — el cambio se refleja al instante en la ficha
+  // (badge "Pendiente de sincronizar") y se sincroniza al volver la red.
+  const updateClient = (data: ClientFormData) => {
     if (!id) return;
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, 'workspaces', ws, 'clients', id), {
-        ...data,
-        nameLower: data.name.toLowerCase(),
-        updatedAt: Timestamp.now(),
-      });
-      setShowEdit(false);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
+    updateClientDoc(ws, id, data);
+    setShowEdit(false);
   };
 
   const deleteClient = async () => {
@@ -119,6 +119,11 @@ export function ClientDetailPage() {
               <Phone className="w-3 h-3" /> {client.phone}
             </a>
             {client.notes && <p className="text-xs text-gris mt-1">{client.notes}</p>}
+            {client.pendingSync && (
+              <p className="text-[10px] text-gris mt-1 flex items-center gap-1">
+                <CloudUpload className="w-3 h-3" /> Pendiente de sincronizar
+              </p>
+            )}
           </div>
         </div>
 
@@ -172,7 +177,7 @@ export function ClientDetailPage() {
         footer={
           <>
             <Button variant="outline" onClick={() => setShowEdit(false)}>Cancelar</Button>
-            <Button loading={saving} form="edit-client-form" type="submit">Guardar</Button>
+            <Button form="edit-client-form" type="submit">Guardar</Button>
           </>
         }
       >

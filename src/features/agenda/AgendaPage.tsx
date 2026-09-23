@@ -11,7 +11,7 @@ import { toLocalDateString, addDays } from '../../lib/dateUtils';
 import { FAB } from '../../components/ui/FAB';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
-import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lock, CloudUpload } from 'lucide-react';
 
 const WORKSPACE_ID = 'ws_lavirgen';
 const CHIP_COLORS = ['bg-rosa-palido', 'bg-terracota-claro', 'bg-salvia-claro'];
@@ -81,7 +81,11 @@ export function AgendaPage() {
       orderBy('startAt')
     );
     const unsub = onSnapshot(q, (snap) => {
-      setAppointments(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Appointment)));
+      setAppointments(snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        pendingSync: d.metadata.hasPendingWrites,
+      } as Appointment)));
     });
     return unsub;
   }, [dateStr, ws]);
@@ -213,6 +217,11 @@ export function AgendaPage() {
                     >
                       <span className="truncate block">{appt.clientName}</span>
                       <span className="text-[10px] opacity-70 block truncate">{appt.serviceNames?.join(', ')}</span>
+                      {appt.pendingSync && (
+                        <span className="text-[10px] italic opacity-80 flex items-center gap-0.5">
+                          <CloudUpload className="w-3 h-3" /> Pendiente de sincronizar
+                        </span>
+                      )}
                       {appt.status === 'realizada' && <span className="text-[10px]">✓</span>}
                       {appt.status === 'cancelada' && <span className="text-[10px]">✗</span>}
                     </button>

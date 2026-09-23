@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, orderBy, onSnapshot, addDoc, Timestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Client } from '../../lib/types';
+import { createClient } from '../../lib/writes';
 import { Avatar } from '../../components/ui/Avatar';
 import { FAB } from '../../components/ui/FAB';
 import { Modal } from '../../components/ui/Modal';
@@ -12,7 +13,7 @@ import { Input } from '../../components/ui/Input';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { clientSchema, ClientFormData } from '../../lib/validators';
-import { Search, UserPlus } from 'lucide-react';
+import { Search, UserPlus, CloudUpload } from 'lucide-react';
 
 const WORKSPACE_ID = 'ws_lavirgen';
 
@@ -23,7 +24,6 @@ export function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ClientFormData>({
@@ -43,29 +43,24 @@ export function ClientsPage() {
       q = query(collection(db, 'workspaces', ws, 'clients'), orderBy('nameLower'));
     }
     const unsub = onSnapshot(q, (snap) =>
-      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)))
+      setClients(snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        pendingSync: d.metadata.hasPendingWrites,
+      } as Client)))
     );
     return unsub;
   }, [ws, search]);
 
-  const addClient = async (data: ClientFormData) => {
-    setSaving(true);
+  // Offline-first: NO await — la escritura se aplica en cache local al
+  // instante (la lista la muestra con "Pendiente de sincronizar") y se
+  // sincroniza al volver la red. Si el servidor la rechaza, writes.ts
+  // muestra un toast de error y el cambio se revierte solo.
+  const addClient = (data: ClientFormData) => {
     setError('');
-    try {
-      await addDoc(collection(db, 'workspaces', ws, 'clients'), {
-        ...data,
-        nameLower: data.name.toLowerCase(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-      reset();
-      setShowAdd(false);
-    } catch (e) {
-      console.error(e);
-      setError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
-    } finally {
-      setSaving(false);
-    }
+    createClient(ws, data);
+    reset();
+    setShowAdd(false);
   };
 
   return (
@@ -100,6 +95,11 @@ export function ClientsPage() {
               <p className="font-medium text-sm text-carbon truncate">{client.name}</p>
               <p className="text-xs text-gris">{client.phone}</p>
             </div>
+            {client.pendingSync && (
+              <span className="flex items-center gap-1 text-[10px] text-gris flex-shrink-0">
+                <CloudUpload className="w-3.5 h-3.5" /> Pendiente de sincronizar
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -118,7 +118,7 @@ export function ClientsPage() {
         footer={
           <>
             <Button variant="outline" onClick={() => { setShowAdd(false); reset(); }}>Cancelar</Button>
-            <Button loading={saving} form="add-client-form" type="submit">Guardar</Button>
+            <Button form="add-client-form" type="submit">Guardar</Button>
           </>
         }
       >
