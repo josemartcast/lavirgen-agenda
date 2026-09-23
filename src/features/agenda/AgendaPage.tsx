@@ -21,11 +21,38 @@ function formatDate(d: Date) {
   return d.toISOString().split('T')[0];
 }
 
-function generateSlots() {
-  const slots = [];
-  for (let h = 7; h < 21; h++) {
-    slots.push(`${String(h).padStart(2, '0')}:00`);
-    slots.push(`${String(h).padStart(2, '0')}:30`);
+function timeToMinutes(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(min: number) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+// Rejilla adaptable (D7): rango según el horario real, en intervalos de 30 min
+function generateSlots(schedule: ScheduleDay[], daySchedule?: ScheduleDay) {
+  let startMin: number | null = null;
+  let endMin: number | null = null;
+  if (daySchedule?.open && daySchedule.slots?.length) {
+    // Día abierto: del inicio del primer slot al final del último
+    startMin = Math.min(...daySchedule.slots.map((s) => timeToMinutes(s.start)));
+    endMin = Math.max(...daySchedule.slots.map((s) => timeToMinutes(s.end)));
+  } else {
+    // Día cerrado: rango global del horario semanal (para poder forzar cita)
+    const openSlots = schedule.filter((d) => d.open).flatMap((d) => d.slots ?? []);
+    if (openSlots.length) {
+      startMin = Math.min(...openSlots.map((s) => timeToMinutes(s.start)));
+      endMin = Math.max(...openSlots.map((s) => timeToMinutes(s.end)));
+    }
+  }
+  if (startMin === null || endMin === null) {
+    startMin = 8 * 60;
+    endMin = 20 * 60;
+  }
+  const slots: string[] = [];
+  for (let t = startMin; t < endMin; t += 30) {
+    slots.push(minutesToTime(t));
   }
   return slots;
 }
@@ -93,7 +120,7 @@ export function AgendaPage() {
   const getBlockForSlot = (time: string) =>
     partialBlocks.find((c) => c.startTime! <= time && time < c.endTime!);
 
-  const slots = generateSlots();
+  const slots = generateSlots(schedule, daySchedule);
 
   const getAppointmentForSlot = (time: string) => {
     return appointments.filter((a) => {
