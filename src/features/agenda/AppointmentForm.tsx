@@ -191,8 +191,39 @@ export function AppointmentForm() {
     }
   };
 
+  // Solape real contra Firestore: citas del mismo día, no canceladas, excluyendo la propia
+  const checkOverlap = async (data: AppointmentFormData): Promise<string | null> => {
+    try {
+      const newStart = new Date(`${data.date}T${data.time}`);
+      const newEnd = new Date(newStart.getTime() + data.durationMin * 60000);
+      const dayStart = new Date(`${data.date}T00:00:00`);
+      const dayEnd = new Date(`${data.date}T23:59:59`);
+      const q = query(
+        collection(db, 'workspaces', ws, 'appointments'),
+        where('startAt', '>=', Timestamp.fromDate(dayStart)),
+        where('startAt', '<', Timestamp.fromDate(dayEnd))
+      );
+      const snap = await getDocs(q);
+      const overlapping = snap.docs.filter((d) => {
+        if (isEditing && id && d.id === id) return false;
+        const a = d.data() as Appointment;
+        if (a.status === 'cancelada') return false;
+        return a.startAt.toDate() < newEnd && a.endAt.toDate() > newStart;
+      });
+      if (overlapping.length > 0) {
+        const names = overlapping.map((d) => (d.data() as Appointment).clientName).join(', ');
+        return `Esta cita se solapa con otra cita: ${names}.`;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  };
+
   const onSubmit = async (data: AppointmentFormData) => {
     const warnings = checkConflicts(data);
+    const overlapMsg = await checkOverlap(data);
+    if (overlapMsg) warnings.push(overlapMsg);
     if (warnings.length > 0) {
       setWarningMsg(warnings.join(' '));
       setPendingData(data);
