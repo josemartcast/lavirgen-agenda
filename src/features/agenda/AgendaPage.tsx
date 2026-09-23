@@ -8,6 +8,8 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Appointment, ScheduleDay, Closure } from '../../lib/types';
 import { FAB } from '../../components/ui/FAB';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
 import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 
 const WORKSPACE_ID = 'ws_lavirgen';
@@ -35,6 +37,8 @@ export function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [closures, setClosures] = useState<Closure[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerValue, setPickerValue] = useState('');
 
   const dateStr = formatDate(currentDate);
   const dayOfWeek = currentDate.getDay();
@@ -115,9 +119,13 @@ export function AgendaPage() {
           <button onClick={() => goDay(-1)} className="p-1 rounded hover:bg-arena">
             <ChevronLeft className="w-5 h-5 text-carbon" />
           </button>
-          <span className="text-sm font-medium text-carbon min-w-[130px] text-center">
+          <button
+            onClick={() => { setPickerValue(dateStr); setShowDatePicker(true); }}
+            className="text-sm font-medium text-carbon min-w-[130px] text-center rounded px-1 hover:bg-arena active:bg-arena"
+            title="Elegir fecha"
+          >
             {DAY_NAMES[dayOfWeek]}, {currentDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-          </span>
+          </button>
           <button onClick={() => goDay(1)} className="p-1 rounded hover:bg-arena">
             <ChevronRight className="w-5 h-5 text-carbon" />
           </button>
@@ -184,6 +192,36 @@ export function AgendaPage() {
       </div>
 
       <FAB onClick={() => navigate(`/cita/nueva?date=${dateStr}`)} />
+
+      {/* Date picker modal (RN-01) */}
+      <Modal
+        open={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        title="Ir a fecha"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setShowDatePicker(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (pickerValue) {
+                  const [y, m, d] = pickerValue.split('-').map(Number);
+                  setCurrentDate(new Date(y, m - 1, d));
+                }
+                setShowDatePicker(false);
+              }}
+            >
+              Ir
+            </Button>
+          </>
+        }
+      >
+        <input
+          type="date"
+          value={pickerValue}
+          onChange={(e) => setPickerValue(e.target.value)}
+          className="w-full border border-border-input rounded-md px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-terracota/40"
+        />
+      </Modal>
     </div>
   );
 }
