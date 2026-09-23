@@ -151,7 +151,7 @@ export function AgendaPage() {
             className="text-sm font-medium text-carbon min-w-[130px] text-center rounded px-1 hover:bg-arena active:bg-arena"
             title="Elegir fecha"
           >
-            {DAY_NAMES[dayOfWeek]}, {currentDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+            {DAY_NAMES[dayOfWeek]}, {currentDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
           </button>
           <button onClick={() => goDay(1)} className="p-1 rounded hover:bg-arena">
             <ChevronRight className="w-5 h-5 text-carbon" />
