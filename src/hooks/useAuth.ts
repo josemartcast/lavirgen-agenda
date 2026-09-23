@@ -11,28 +11,30 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubDoc: (() => void) | null = null;
     const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      unsubDoc?.(); // limpiar suscripción anterior
+      unsubDoc = null;
       setUser(firebaseUser);
-      if (!firebaseUser) {
+      if (firebaseUser) {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        unsubDoc = onSnapshot(userRef, (snap) => {
+          if (snap.exists()) {
+            setUserDoc({ id: snap.id, ...snap.data() } as unknown as UserDoc);
+          } else {
+            setUserDoc(null);
+          }
+          setLoading(false);
+        });
+      } else {
         setUserDoc(null);
         setLoading(false);
-        return;
       }
-
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const unsubDoc = onSnapshot(userRef, (snap) => {
-        if (snap.exists()) {
-          setUserDoc({ id: snap.id, ...snap.data() } as unknown as UserDoc);
-        } else {
-          setUserDoc(null);
-        }
-        setLoading(false);
-      });
-
-      return () => unsubDoc();
     });
-
-    return () => unsubAuth();
+    return () => {
+      unsubAuth();
+      unsubDoc?.();
+    };
   }, []);
 
   return {
