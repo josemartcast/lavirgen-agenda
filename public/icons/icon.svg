@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Monograma LAVIRGEN — icono PWA -->
+  <rect width="512" height="512" fill="#EDE6DD"/>
+  <!-- Ovalo carbon -->
+  <ellipse cx="256" cy="256" rx="133" ry="205" fill="none" stroke="#2E2E2A" stroke-width="9"/>
+  <!-- L serif carbon -->
+  <text x="256" y="330" text-anchor="middle" font-family="Georgia, 'Cormorant Garamond', serif" font-weight="bold" font-size="235" fill="#2E2E2A">L</text>
+  <!-- Arco terracota suave -->
+  <path d="M 86 262 Q 171 218 256 252 Q 341 286 426 252" fill="none" stroke="#C98F7A" stroke-width="11" stroke-linecap="round"/>
+</svg>
