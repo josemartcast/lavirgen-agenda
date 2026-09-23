@@ -9,6 +9,7 @@ import {
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { appointmentSchema, AppointmentFormData } from '../../lib/validators';
+import { toLocalDateString } from '../../lib/dateUtils';
 import { Appointment, Client, Service, ScheduleDay, Closure } from '../../lib/types';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -48,7 +49,7 @@ export function AppointmentForm() {
   } = useForm<AppointmentFormData>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
-      date: searchParams.get('date') || new Date().toISOString().split('T')[0],
+      date: searchParams.get('date') || toLocalDateString(new Date()),
       time: searchParams.get('time') || '09:00',
       serviceIds: [],
       serviceNames: [],
@@ -88,7 +89,7 @@ export function AppointmentForm() {
       if (snap.exists()) {
         const a = snap.data() as Appointment;
         const start = a.startAt.toDate();
-        setValue('date', start.toISOString().split('T')[0]);
+        setValue('date', toLocalDateString(start));
         setValue('time', `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`);
         setValue('clientId', a.clientId);
         setValue('clientName', a.clientName);

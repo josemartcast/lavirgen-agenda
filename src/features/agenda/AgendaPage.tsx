@@ -7,6 +7,7 @@ import {
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Appointment, ScheduleDay, Closure } from '../../lib/types';
+import { toLocalDateString, addDays } from '../../lib/dateUtils';
 import { FAB } from '../../components/ui/FAB';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
@@ -16,10 +17,6 @@ const WORKSPACE_ID = 'ws_lavirgen';
 const CHIP_COLORS = ['bg-rosa-palido', 'bg-terracota-claro', 'bg-salvia-claro'];
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const DAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
-function formatDate(d: Date) {
-  return d.toISOString().split('T')[0];
-}
 
 function timeToMinutes(t: string) {
   const [h, m] = t.split(':').map(Number);
@@ -67,7 +64,7 @@ export function AgendaPage() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerValue, setPickerValue] = useState('');
 
-  const dateStr = formatDate(currentDate);
+  const dateStr = toLocalDateString(currentDate);
   const dayOfWeek = currentDate.getDay();
   const dayId = DAY_IDS[dayOfWeek];
   const daySchedule = schedule.find((s) => s.dayId === dayId);
@@ -137,11 +134,7 @@ export function AgendaPage() {
   };
 
   const goDay = (delta: number) => {
-    setCurrentDate((d) => {
-      const next = new Date(d);
-      next.setDate(next.getDate() + delta);
-      return next;
-    });
+    setCurrentDate((d) => addDays(d, delta));
   };
 
   return (
