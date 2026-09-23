@@ -24,6 +24,7 @@ export function ClientsPage() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
@@ -49,6 +50,7 @@ export function ClientsPage() {
 
   const addClient = async (data: ClientFormData) => {
     setSaving(true);
+    setError('');
     try {
       await addDoc(collection(db, 'workspaces', ws, 'clients'), {
         ...data,
@@ -60,6 +62,7 @@ export function ClientsPage() {
       setShowAdd(false);
     } catch (e) {
       console.error(e);
+      setError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -102,7 +105,7 @@ export function ClientsPage() {
       </div>
 
       <button
-        onClick={() => setShowAdd(true)}
+        onClick={() => { setError(''); setShowAdd(true); }}
         className="fixed bottom-20 right-4 w-14 h-14 bg-terracota text-white rounded-full shadow-lg flex items-center justify-center z-40"
       >
         <UserPlus className="w-5 h-5" />
@@ -123,6 +126,7 @@ export function ClientsPage() {
           <Input label="Nombre" placeholder="María García" error={errors.name?.message} {...register('name')} />
           <Input label="Teléfono" type="tel" placeholder="612345678" error={errors.phone?.message} {...register('phone')} />
           <Input label="Notas" placeholder="Alergias, preferencias..." {...register('notes')} />
+          {error && <p className="text-sm text-red-600">{error}</p>}
         </form>
       </Modal>
     </div>

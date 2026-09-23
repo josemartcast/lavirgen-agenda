@@ -24,6 +24,7 @@ export function ServicesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
@@ -40,9 +41,10 @@ export function ServicesPage() {
     );
   }, [ws]);
 
-  const openAdd = () => { setEditingId(null); reset(); setShowSheet(true); };
+  const openAdd = () => { setEditingId(null); setError(''); reset(); setShowSheet(true); };
   const openEdit = (svc: Service) => {
     setEditingId(svc.id);
+    setError('');
     setValue('name', svc.name);
     setValue('durationMin', svc.durationMin);
     setValue('price', svc.price);
@@ -52,6 +54,7 @@ export function ServicesPage() {
 
   const saveService = async (data: ServiceFormData) => {
     setSaving(true);
+    setError('');
     try {
       if (editingId) {
         await updateDoc(doc(db, 'workspaces', ws, 'services', editingId), {
@@ -66,6 +69,7 @@ export function ServicesPage() {
       reset();
     } catch (e) {
       console.error(e);
+      setError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -73,11 +77,13 @@ export function ServicesPage() {
 
   const deleteService = async (id: string) => {
     setSaving(true);
+    setError('');
     try {
       await deleteDoc(doc(db, 'workspaces', ws, 'services', id));
       setShowDelete(null);
     } catch (e) {
       console.error(e);
+      setError('No se pudo eliminar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -133,6 +139,7 @@ export function ServicesPage() {
                 <input type="checkbox" {...register('active')} className="accent-terracota" />
                 Servicio activo
               </label>
+              {error && <p className="text-sm text-red-600">{error}</p>}
               <div className="flex gap-2 mt-2">
                 <Button variant="outline" className="flex-1" onClick={() => setShowSheet(false)}>Cancelar</Button>
                 <Button type="submit" className="flex-1" loading={saving}>Guardar</Button>
@@ -157,6 +164,7 @@ export function ServicesPage() {
         }
       >
         <p className="text-sm text-carbon">¿Eliminar este servicio? Las citas existentes no se verán afectadas.</p>
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
       </Modal>
     </div>
   );

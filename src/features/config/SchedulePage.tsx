@@ -23,6 +23,7 @@ export function SchedulePage() {
   const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -52,6 +53,7 @@ export function SchedulePage() {
 
   const saveAll = async () => {
     setSaving(true);
+    setError('');
     try {
       for (const day of schedule) {
         await setDoc(
@@ -63,6 +65,7 @@ export function SchedulePage() {
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       console.error(e);
+      setError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -119,6 +122,8 @@ export function SchedulePage() {
             ✓ Horario guardado
           </div>
         )}
+
+        {error && <p className="text-sm text-red-600 text-center">{error}</p>}
 
         <Button className="w-full mt-2" loading={saving} onClick={saveAll}>
           Guardar horario

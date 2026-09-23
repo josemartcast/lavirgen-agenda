@@ -185,7 +185,8 @@ export function AppointmentForm() {
       }
       navigate('/agenda');
     } catch (e) {
-      setError('Error guardando la cita. Inténtalo de nuevo.');
+      console.error(e);
+      setError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -246,8 +247,9 @@ export function AppointmentForm() {
         });
       }
       navigate('/agenda');
-    } catch {
-      setError('Error al eliminar la cita.');
+    } catch (e) {
+      console.error(e);
+      setError('No se pudo eliminar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }

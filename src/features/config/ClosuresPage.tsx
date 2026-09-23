@@ -106,6 +106,7 @@ export function ClosuresPage() {
       setEditingId(null);
     } catch (e) {
       console.error(e);
+      setFormError('No se pudo guardar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -113,11 +114,13 @@ export function ClosuresPage() {
 
   const deleteClosure = async (id: string) => {
     setSaving(true);
+    setFormError('');
     try {
       await deleteDoc(doc(db, 'workspaces', ws, 'closures', id));
       setDeleteId(null);
     } catch (e) {
       console.error(e);
+      setFormError('No se pudo eliminar. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -217,6 +220,7 @@ export function ClosuresPage() {
         }
       >
         <p className="text-sm text-carbon">¿Eliminar este cierre?</p>
+        {formError && <p className="text-sm text-red-600 mt-2">{formError}</p>}
       </Modal>
     </div>
   );
