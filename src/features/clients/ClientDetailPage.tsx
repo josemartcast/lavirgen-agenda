@@ -38,7 +38,7 @@ export function ClientDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    const unsub = onSnapshot(doc(db, 'workspaces', ws, 'clients', id), (snap) => {
+    const unsub = onSnapshot(doc(db, 'workspaces', ws, 'clients', id), { includeMetadataChanges: true }, (snap) => {
       if (snap.exists()) {
         const data = {
           id: snap.id,
@@ -60,7 +60,7 @@ export function ClientDetailPage() {
       where('clientId', '==', id),
       orderBy('startAt', 'desc')
     );
-    const unsub = onSnapshot(q, (snap) =>
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) =>
       setAppointments(snap.docs.map((d) => ({
         id: d.id,
         ...d.data(),

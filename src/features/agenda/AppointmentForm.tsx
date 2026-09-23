@@ -13,6 +13,7 @@ import { toLocalDateString } from '../../lib/dateUtils';
 import {
   buildAppointmentPayload, createAppointment, updateAppointment,
 } from '../../lib/writes';
+import { findOverlappingAppointment } from '../../lib/overlap';
 import { Appointment, Client, Service, ScheduleDay, Closure } from '../../lib/types';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -173,33 +174,22 @@ export function AppointmentForm() {
     navigate('/agenda');
   };
 
-  // Solape real contra Firestore: citas del mismo día, no canceladas, excluyendo la propia
+  // Solape real: online consulta el servidor (getDocs); offline usa la cache
+  // local (getDocsFromCache) sin bloquear. Logica en lib/overlap.ts.
   const checkOverlap = async (data: AppointmentFormData): Promise<string | null> => {
-    try {
-      const newStart = new Date(`${data.date}T${data.time}`);
-      const newEnd = new Date(newStart.getTime() + data.durationMin * 60000);
-      const dayStart = new Date(`${data.date}T00:00:00`);
-      const dayEnd = new Date(`${data.date}T23:59:59`);
-      const q = query(
-        collection(db, 'workspaces', ws, 'appointments'),
-        where('startAt', '>=', Timestamp.fromDate(dayStart)),
-        where('startAt', '<', Timestamp.fromDate(dayEnd))
-      );
-      // Desde cache: instantáneo online y offline (nunca bloquea el guardado).
-      // La agenda ya escucha las citas del día, así que están en cache local.
-      const snap = await getDocsFromCache(q);
-      const overlapping = snap.docs.filter((d) => {
-        if (isEditing && id && d.id === id) return false;
-        const a = d.data() as Appointment;
-        if (a.status === 'cancelada') return false;
-        return a.startAt.toDate() < newEnd && a.endAt.toDate() > newStart;
-      });
-      if (overlapping.length > 0) {
-        const names = overlapping.map((d) => (d.data() as Appointment).clientName).join(', ');
-        return `Esta cita se solapa con otra cita: ${names}.`;
-      }
-    } catch (e) {
-      console.error(e);
+    const overlapping = await findOverlappingAppointment(
+      db,
+      {
+        ws,
+        date: data.date,
+        time: data.time,
+        durationMin: data.durationMin,
+        excludeId: isEditing && id ? id : undefined,
+      },
+      navigator.onLine,
+    );
+    if (overlapping) {
+      return `Esta cita se solapa con otra cita: ${overlapping.clientName}.`;
     }
     return null;
   };

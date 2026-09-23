@@ -27,10 +27,11 @@ import {
 import {
   initializeFirestore, connectFirestoreEmulator,
   disableNetwork, enableNetwork,
-  collection, doc, addDoc, updateDoc,
-  getDocsFromCache, getDocsFromServer, query, where, Timestamp,
+  collection, doc, addDoc, updateDoc, onSnapshot,
+  getDocsFromCache, getDocsFromServer, getDocs, query, where, Timestamp,
 } from 'firebase/firestore';
 import { writeInBackground } from '../src/lib/writeInBackground';
+import { findOverlappingAppointment } from '../src/lib/overlap';
 
 const FS_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
 const AUTH_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099';
@@ -251,6 +252,73 @@ async function main() {
   ).catch(() => { /* la promesa rechaza; writeInBackground ya lo capturo */ });
   check('Rechazo — escritura al workspace denegada por reglas', rejected,
     'permission-denied capturado por el catch');
+
+  // ─── Bateria 2: badge con includeMetadataChanges + solape dual ────────────
+  // Observaciones del Socio: el badge debe aparecer mientras esta pendiente y
+  // desaparecer solo tras la confirmacion del servidor; y el solape online
+  // debe volver a consultar el servidor (cache solo como alternativa offline).
+
+  // P2.1 — Badge visible DURANTE la escritura pendiente (listener con metadata changes)
+  const pendingStates: boolean[] = [];
+  const badgeDoc = doc(db, 'workspaces', WS, 'clients', clientId);
+  const unsubMeta = onSnapshot(badgeDoc, { includeMetadataChanges: true }, (snap) => {
+    pendingStates.push(snap.metadata.hasPendingWrites);
+  });
+  await sleep(400); // dejar llegar el estado inicial (confirmado: false)
+  await disableNetwork(db);
+  writeInBackground(
+    updateDoc(badgeDoc, { notes: 'badge test', updatedAt: Timestamp.now() }),
+    'badgeTest',
+  );
+  await sleep(1500);
+  check('Badge — visible durante la escritura pendiente',
+    pendingStates.includes(true),
+    `estados observados=${JSON.stringify(pendingStates)}`);
+
+  // P2.2 — Badge desaparece SOLO tras enableNetwork + confirmacion del servidor
+  await enableNetwork(db);
+  const tWait = Date.now();
+  while (Date.now() - tWait < 10000) {
+    if (pendingStates.includes(true) && pendingStates[pendingStates.length - 1] === false) break;
+    await sleep(250);
+  }
+  unsubMeta();
+  check('Badge — se elimina tras la confirmacion del servidor',
+    pendingStates.includes(true) && pendingStates[pendingStates.length - 1] === false,
+    `secuencia=${JSON.stringify(pendingStates)}`);
+
+  // P2.3 — Online: cita en servidor detectada AUNQUE no este en cache
+  // Segundo cliente: cache vacia, ningun listener previo. online=true → getDocs real.
+  const app2 = initializeApp({ projectId: PROJECT, apiKey: 'demo' }, 'second');
+  const auth2 = getAuth(app2);
+  connectAuthEmulator(auth2, `http://${AUTH_HOST}`, { disableWarnings: true });
+  const db2 = initializeFirestore(app2, { experimentalForceLongPolling: true });
+  connectFirestoreEmulator(db2, FS_HOSTNAME, Number(FS_PORT));
+  await signInWithEmailAndPassword(auth2, email, password);
+  const foundOnline = await findOverlappingAppointment(
+    db2,
+    { ws: WS, date: '2026-09-24', time: '10:30', durationMin: 60 },
+    true, // conexion: servidor real
+  );
+  check('Solape online — cita del servidor se detecta sin cache previa',
+    !!foundOnline,
+    `encontrada=${foundOnline ? `'${foundOnline.clientName}'` : 'null'}`);
+
+  // P2.4 — Offline: cache usada SIN bloquear la interfaz
+  // (la consulta anterior ya poblo la cache del segundo cliente)
+  await disableNetwork(db2);
+  const tOff = performance.now();
+  const foundOffline = await findOverlappingAppointment(
+    db2,
+    { ws: WS, date: '2026-09-24', time: '10:30', durationMin: 60 },
+    false, // sin conexion: cache local
+  );
+  const offElapsed = performance.now() - tOff;
+  check('Solape offline — cache sin bloquear la interfaz',
+    !!foundOffline && offElapsed < 500,
+    `${offElapsed.toFixed(0)}ms, encontrada=${!!foundOffline}`);
+  await enableNetwork(db2);
+  await deleteApp(app2);
 
   // ─── Resumen ───────────────────────────────────────────────────────────────
   const failed = results.filter((r) => !r.ok);

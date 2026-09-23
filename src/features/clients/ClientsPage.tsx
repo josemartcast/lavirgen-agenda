@@ -42,7 +42,7 @@ export function ClientsPage() {
     } else {
       q = query(collection(db, 'workspaces', ws, 'clients'), orderBy('nameLower'));
     }
-    const unsub = onSnapshot(q, (snap) =>
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) =>
       setClients(snap.docs.map((d) => ({
         id: d.id,
         ...d.data(),

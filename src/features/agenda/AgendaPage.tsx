@@ -80,7 +80,7 @@ export function AgendaPage() {
       where('startAt', '<=', Timestamp.fromDate(endOfDay)),
       orderBy('startAt')
     );
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setAppointments(snap.docs.map((d) => ({
         id: d.id,
         ...d.data(),
