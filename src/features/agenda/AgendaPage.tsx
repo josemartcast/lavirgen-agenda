@@ -105,9 +105,8 @@ export function AgendaPage() {
 
   const isInSchedule = (time: string) => {
     if (!daySchedule?.open) return false;
-    const slot = daySchedule.slots?.[0];
-    if (!slot) return false;
-    return time >= slot.start && time < slot.end;
+    // Jornada partida (D6): en horario si cae dentro de ALGÚN slot del día
+    return (daySchedule.slots ?? []).some((slot) => slot.start <= time && time < slot.end);
   };
 
   const goDay = (delta: number) => {
